@@ -2,3 +2,6 @@ node_modules
 
 backendSetup.yaml
 frontendSetup.yaml
+
+package-lock.json
+package.json
