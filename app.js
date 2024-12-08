@@ -23,16 +23,44 @@ app.get("/", (req, res) => {
 io.on("connection", function (uniquesocket) {
   console.log("connected");
 
+  // Assign players
   if (!players.white) {
     players.white = uniquesocket.id;
-    uniquesocket.emit("playerRole", "w");
+    uniquesocket.emit("playerRole", "w"); // emit correct event
   } else if (!players.black) {
     players.black = uniquesocket.id;
-    uniquesocket.emit("playRole", "b");
+    uniquesocket.emit("playerRole", "b"); // emit correct event
   } else {
     uniquesocket.emit("spectatorRole");
   }
 
+  // Listen for moves from the player
+  uniquesocket.on("move", (move) => {
+    try {
+      // Check if the player is making a valid move for their color
+      if (
+        (chess.turn() === "w" && uniquesocket.id !== players.white) ||
+        (chess.turn() === "b" && uniquesocket.id !== players.black)
+      ) {
+        return; // Prevent invalid moves
+      }
+
+      const result = chess.move(move);
+      if (result) {
+        currentPlayer = chess.turn();
+        io.emit("move", move); // Broadcast the move to both players
+        io.emit("boardState", chess.fen()); // Update the board state
+      } else {
+        console.log("Invalid move : ", move);
+        uniquesocket.emit("invalidMove", move); // Inform the player of the invalid move
+      }
+    } catch (err) {
+      console.log(err);
+      uniquesocket.emit("invalidMove", move); // Handle error and notify the player
+    }
+  });
+
+  // Handle disconnection
   uniquesocket.on("disconnect", function () {
     if (uniquesocket.id === players.white) {
       delete players.white;
@@ -40,26 +68,6 @@ io.on("connection", function (uniquesocket) {
       delete players.black;
     }
   });
-});
-
-io.on("move", (move) => {
-  try {
-    if (chess.turn() === "w" && uniquesocket.id !== players.white) return;
-    if (chess.turn() === "b" && uniquesocket.id !== players.black) return;
-
-    const result = chess.move(move);
-    if (result) {
-      currentPlayer = chess.turn();
-      io.emit("move", move);
-      io.emit("boardState", chess.fen());
-    } else {
-      console.log("Invalid move : ", move);
-      uniquesocket.emit("invalidMove", move);
-    }
-  } catch (err) {
-    console.log(err);
-    uniquesocket.emit("Invalid move : ", move);
-  }
 });
 
 server.listen(3000, function () {
